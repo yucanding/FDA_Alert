@@ -4,11 +4,22 @@ from bs4 import BeautifulSoup
 import time
 import re
 import os
+from datetime import datetime
 
 # --- 配置 ---
 TG_TOKEN = os.environ.get('TG_TOKEN')
 TG_CHAT_ID = os.environ.get('TG_CHAT_ID')
 ID_FILE = "last_fda_ids.txt"
+
+def convert_date_to_chinese(date_str):
+    """将英文日期 March 10, 2026 转换为 2026年3月10日"""
+    try:
+        # FDA 格式通常是 "March 10, 2026"
+        dt = datetime.strptime(date_str, "%B %d, %Y")
+        return dt.strftime("%Y年%m月%d日").replace("年0", "年").replace("月0", "月")
+    except:
+        # 如果解析失败，返回原字符串，确保程序不崩溃
+        return date_str
 
 def get_verified_stock_data(company_name):
     """通过 yfinance 搜索并校验美股身份"""
@@ -34,7 +45,6 @@ def get_verified_stock_data(company_name):
 def send_tg_message(text):
     if not TG_TOKEN or not TG_CHAT_ID or not text: return
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    # 使用 POST 发送，确保长文本能正常传输
     requests.post(url, json={
         "chat_id": TG_CHAT_ID, 
         "text": text, 
@@ -63,7 +73,10 @@ def main():
         current_all_ids = list(old_ids)
 
         for header in date_headers:
-            date_str = header.get_text(strip=True)
+            raw_date = header.get_text(strip=True)
+            # 💡 转换日期格式
+            chinese_date = convert_date_to_chinese(raw_date)
+            
             table = header.find_next('table')
             if not table: continue
             
@@ -74,44 +87,49 @@ def main():
                 submission = cols[3].get_text(strip=True).upper()
                 if submission != "ORIG-1": continue
 
+                # 提取纯药品名
+                full_drug_text = cols[0].get_text(separator="\n", strip=True)
+                drug_name_only = full_drug_text.split('\n')[0].strip()
+                
+                # 提取 ApplNo
                 link_tag = cols[0].find('a')
-                appl_no = re.search(r'ApplNo=(\d+)', link_tag['href']).group(1) if link_tag else ""
+                appl_no = ""
+                if link_tag and 'href' in link_tag.attrs:
+                    match = re.search(r'ApplNo=(\d+)', link_tag['href'])
+                    if match: appl_no = match.group(1)
                 
                 if appl_no and appl_no not in old_ids:
                     company = cols[4].get_text(strip=True)
                     stock = get_verified_stock_data(company)
                     
                     if stock:
-                        drug_name = cols[0].get_text(strip=True).split('\n')[0]
                         fda_link = f"https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo={appl_no}"
                         
-                        # 中文模板，无加粗
-                        item_msg = (f"💊FDA新药获批❗\n"
-                                    f"📅日期: {date_str}\n"
-                                    f"🎫代码: ${stock['ticker']}\n"
-                                    f"🏢公司: {company}\n"
-                                    f"💰市值: ${stock['market_cap']:.2f}B\n"
-                                    f"💵股价: ${stock['price']:.2f}\n"
-                                    f"🔗链接: {fda_link}")
+                        # 组合消息
+                        item_msg = (f"FDA新药获批 (ORIG-1)\n"
+                                    f"日期: {chinese_date}\n"
+                                    f"公司: ${stock['ticker']} ({company})\n"
+                                    f"药品: {drug_name_only}\n"
+                                    f"市值: ${stock['market_cap']:.2f}B\n"
+                                    f"股价: ${stock['price']:.2f}\n"
+                                    f"链接: {fda_link}")
                         
                         new_items_list.append(item_msg)
                         current_all_ids.append(appl_no)
                     
                     time.sleep(1)
 
-        # 合并推送逻辑
         if new_items_list:
-            # 用分隔线将多个条目拼接成一条消息
             combined_message = "\n\n------------------\n\n".join(new_items_list)
             send_tg_message(combined_message)
             
             with open(ID_FILE, "w") as f:
                 f.write("\n".join(current_all_ids[-200:]))
         else:
-            print("没有发现新的美股上市公司 ORIG-1 获批。")
+            print("未发现新的美股上市公司获批项目。")
 
     except Exception as e:
-        print(f"执行出错: {e}")
+        print(f"出错: {e}")
 
 if __name__ == "__main__":
     main()
