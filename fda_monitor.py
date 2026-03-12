@@ -106,7 +106,7 @@ def main():
                         fda_link = f"https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo={appl_no}"
                         
                         # 组合消息
-                        item_msg = (f"❗FDA新药获批 (ORIG-1)❗\n"
+                        item_msg = (f"❗FDA新药获批❗\n"
                                     f"📅日期: {chinese_date}\n"
                                     f"🏢公司: ${stock['ticker']} ({company})\n"
                                     f"💊药品: {drug_name_only}\n"
@@ -133,4 +133,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
