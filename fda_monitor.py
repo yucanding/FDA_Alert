@@ -106,13 +106,13 @@ def main():
                         fda_link = f"https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo={appl_no}"
                         
                         # 组合消息
-                        item_msg = (f"FDA新药获批 (ORIG-1)\n"
-                                    f"日期: {chinese_date}\n"
-                                    f"公司: ${stock['ticker']} ({company})\n"
-                                    f"药品: {drug_name_only}\n"
-                                    f"市值: ${stock['market_cap']:.2f}B\n"
-                                    f"股价: ${stock['price']:.2f}\n"
-                                    f"链接: {fda_link}")
+                        item_msg = (f"❗FDA新药获批 (ORIG-1)❗\n"
+                                    f"📅日期: {chinese_date}\n"
+                                    f"🏢公司: ${stock['ticker']} ({company})\n"
+                                    f"💊药品: {drug_name_only}\n"
+                                    f"💰市值: ${stock['market_cap']:.2f}B\n"
+                                    f"💵股价: ${stock['price']:.2f}\n"
+                                    f"🔗链接: {fda_link}")
                         
                         new_items_list.append(item_msg)
                         current_all_ids.append(appl_no)
@@ -133,3 +133,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
