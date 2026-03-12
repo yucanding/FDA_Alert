@@ -1,0 +1,37 @@
+name: FDA新药监控
+
+on:
+  schedule:
+    # 定时任务：美东时间周一到周五早上7点 (对应 UTC 12:00)
+    - cron: '0 12 * * 1-5'
+  workflow_dispatch: # 允许你手动点击按钮测试
+
+jobs:
+  run_script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      - name: 安装环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 安装依赖库
+        run: pip install requests beautifulsoup4 yfinance
+
+      - name: 执行监控脚本
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: python fda_monitor.py
+
+      - name: 保存运行记录
+        # 这步很关键：它会把更新后的 last_fda_ids.txt 存回仓库，防止下次重复推送
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add last_fda_ids.txt
+          git commit -m "更新FDA记录" || exit 0
+          git push
