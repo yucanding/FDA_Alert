@@ -43,14 +43,24 @@ def get_verified_stock_data(company_name):
         return None
 
 def send_tg_message(text):
+    # 💡 逻辑修改：将环境变量中的 ID 字符串按逗号切分为列表
     if not TG_TOKEN or not TG_CHAT_ID or not text: return
+    
+    # 支持多个 ID，自动处理空格
+    target_ids = [chat_id.strip() for chat_id in TG_CHAT_ID.split(',') if chat_id.strip()]
+    
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    requests.post(url, json={
-        "chat_id": TG_CHAT_ID, 
-        "text": text, 
-        "parse_mode": "HTML", 
-        "disable_web_page_preview": True
-    })
+    
+    for chat_id in target_ids:
+        try:
+            requests.post(url, json={
+                "chat_id": chat_id, 
+                "text": text, 
+                "parse_mode": "HTML", 
+                "disable_web_page_preview": True
+            }, timeout=10)
+        except Exception as e:
+            print(f"发送消息至 {chat_id} 失败: {e}")
 
 def main():
     url = "https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=report.page"
@@ -85,7 +95,7 @@ def main():
                 if len(cols) < 5: continue
                 
                 submission = cols[3].get_text(strip=True).upper()
-                if submission != "ORIG-1": continue
+                # if submission != "ORIG-1": continue
 
                 # 提取纯药品名
                 full_drug_text = cols[0].get_text(separator="\n", strip=True)
