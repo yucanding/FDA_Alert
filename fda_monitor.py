@@ -8,8 +8,7 @@ from datetime import datetime
 
 # --- 配置 ---
 TG_TOKEN = os.environ.get('TG_TOKEN')
-# 💡 修改点：支持读取逗号分隔的多个 ID
-TG_CHAT_IDS = os.environ.get('TG_CHAT_ID', '').split(',')
+TG_CHAT_ID = os.environ.get('TG_CHAT_ID')
 ID_FILE = "last_fda_ids.txt"
 
 def convert_date_to_chinese(date_str):
@@ -44,13 +43,15 @@ def get_verified_stock_data(company_name):
         return None
 
 def send_tg_message(text):
-    # 💡 修改点：循环发送给所有配置的 CHAT_ID
-    if not TG_TOKEN or not TG_CHAT_IDS or not text: return
+    # 💡 逻辑修改：将环境变量中的 ID 字符串按逗号切分为列表
+    if not TG_TOKEN or not TG_CHAT_ID or not text: return
+    
+    # 支持多个 ID，自动处理空格
+    target_ids = [chat_id.strip() for chat_id in TG_CHAT_ID.split(',') if chat_id.strip()]
+    
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
     
-    for chat_id in TG_CHAT_IDS:
-        chat_id = chat_id.strip()
-        if not chat_id: continue
+    for chat_id in target_ids:
         try:
             requests.post(url, json={
                 "chat_id": chat_id, 
@@ -59,7 +60,7 @@ def send_tg_message(text):
                 "disable_web_page_preview": True
             }, timeout=10)
         except Exception as e:
-            print(f"发送至 {chat_id} 失败: {e}")
+            print(f"发送消息至 {chat_id} 失败: {e}")
 
 def main():
     url = "https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=report.page"
