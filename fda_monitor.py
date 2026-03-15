@@ -95,7 +95,7 @@ def main():
                 if len(cols) < 5: continue
                 
                 submission = cols[3].get_text(strip=True).upper()
-                if submission != "ORIG-1": continue
+                # if submission != "ORIG-1": continue
 
                 # 提取纯药品名
                 full_drug_text = cols[0].get_text(separator="\n", strip=True)
