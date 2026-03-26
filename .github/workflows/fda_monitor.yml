@@ -1,11 +1,8 @@
 name: FDA新药监控
 
 on:
-  schedule:
-    - cron: '0 12 * * 1-5'
-  workflow_dispatch: 
+  workflow_dispatch: # 必须保留，供外部触发
 
-# 💡 新增：显式声明权限，确保 GITHUB_TOKEN 拥有写权限
 permissions:
   contents: write
 
@@ -14,15 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v3
-        with:
-          # 💡 确保使用默认 token 检出
-          token: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/checkout@v4 # 升级到 v4
 
       - name: 安装环境
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.10'
 
       - name: 安装依赖库
         run: pip install requests beautifulsoup4 yfinance
@@ -35,8 +29,9 @@ jobs:
 
       - name: 保存运行记录
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add last_fda_ids.txt
-          # 只有在有变动时才 commit
-          git diff --quiet && git diff --staged --quiet || (git commit -m "更新FDA记录" && git push)
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          # 确保这两个文件都能被追踪
+          touch last_fda_ids.txt last_success_date_drug.txt
+          git add last_fda_ids.txt last_success_date_drug.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "更新FDA记录及状态" && git push)
