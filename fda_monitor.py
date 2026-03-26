@@ -10,23 +10,19 @@ from datetime import datetime
 TG_TOKEN = os.environ.get('TG_TOKEN')
 TG_CHAT_ID = os.environ.get('TG_CHAT_ID')
 ID_FILE = "last_fda_ids.txt"
+LAST_SUCCESS_FILE = "last_success_date_drug.txt" # <--- 新增状态文件
 
 def convert_date_to_chinese(date_str):
-    """将英文日期 March 10, 2026 转换为 2026年3月10日"""
     try:
-        # FDA 格式通常是 "March 10, 2026"
         dt = datetime.strptime(date_str, "%B %d, %Y")
         return dt.strftime("%Y年%m月%d日").replace("年0", "年").replace("月0", "月")
     except:
-        # 如果解析失败，返回原字符串，确保程序不崩溃
         return date_str
 
 def get_verified_stock_data(company_name):
-    """通过 yfinance 搜索并校验美股身份"""
     try:
         search = yf.Search(company_name, max_results=3)
-        if not search.quotes:
-            return None
+        if not search.quotes: return None
         core_name = company_name.split()[0].upper()
         for quote in search.quotes:
             ticker = quote['symbol']
@@ -39,18 +35,12 @@ def get_verified_stock_data(company_name):
                     "market_cap": stock.fast_info.market_cap / 1e9
                 }
         return None
-    except:
-        return None
+    except: return None
 
 def send_tg_message(text):
-    # 💡 逻辑修改：将环境变量中的 ID 字符串按逗号切分为列表
     if not TG_TOKEN or not TG_CHAT_ID or not text: return
-    
-    # 支持多个 ID，自动处理空格
     target_ids = [chat_id.strip() for chat_id in TG_CHAT_ID.split(',') if chat_id.strip()]
-    
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    
     for chat_id in target_ids:
         try:
             requests.post(url, json={
@@ -60,9 +50,17 @@ def send_tg_message(text):
                 "disable_web_page_preview": True
             }, timeout=10)
         except Exception as e:
-            print(f"发送消息至 {chat_id} 失败: {e}")
+            print(f"发送失败: {e}")
 
 def main():
+    # --- 1. 今日熔断检查 ---
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    if os.path.exists(LAST_SUCCESS_FILE):
+        with open(LAST_SUCCESS_FILE, "r") as f:
+            if f.read().strip() == today_str:
+                print(f"📌 今日 ({today_str}) 已成功推送，跳过本次执行。")
+                return
+
     url = "https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=report.page"
     headers = {'User-Agent': 'Mozilla/5.0'}
     
@@ -84,9 +82,7 @@ def main():
 
         for header in date_headers:
             raw_date = header.get_text(strip=True)
-            # 💡 转换日期格式
             chinese_date = convert_date_to_chinese(raw_date)
-            
             table = header.find_next('table')
             if not table: continue
             
@@ -97,11 +93,9 @@ def main():
                 submission = cols[3].get_text(strip=True).upper()
                 if submission != "ORIG-1": continue
 
-                # 提取纯药品名
                 full_drug_text = cols[0].get_text(separator="\n", strip=True)
                 drug_name_only = full_drug_text.split('\n')[0].strip()
                 
-                # 提取 ApplNo
                 link_tag = cols[0].find('a')
                 appl_no = ""
                 if link_tag and 'href' in link_tag.attrs:
@@ -114,8 +108,6 @@ def main():
                     
                     if stock:
                         fda_link = f"https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo={appl_no}"
-                        
-                        # 先将数据存入列表，而非直接拼接字符串
                         records_to_send.append({
                             "date": chinese_date,
                             "ticker": stock['ticker'],
@@ -125,7 +117,6 @@ def main():
                             "price": stock['price'],
                             "link": fda_link
                         })
-                        
                     current_all_ids.append(appl_no)
                     time.sleep(1)
 
@@ -133,7 +124,6 @@ def main():
         if records_to_send:
             final_msg = f"<b>🧬 FDA新药获批更新 ({len(records_to_send)}家上市企业)</b>\n\n"
             msg_blocks = []
-            
             for idx, item in enumerate(records_to_send, 1):
                 block = (f"{idx}. 📅日期: {item['date']}\n"
                          f"    🏢公司: ${item['ticker']} ({item['company']})\n"
@@ -141,20 +131,19 @@ def main():
                          f"    💰市值: ${item['cap']:.2f}B\n"
                          f"    💵股价: ${item['price']:.2f}\n"
                          f'    🔗<a href="{item["link"]}">点击查看公告</a>')
-                         #f"    🔗链接: {item['link']}")
                 msg_blocks.append(block)
             
-            # 使用 join 自动处理分割线（单条记录时不加分割线）
-            final_msg += "\n\n---------------\n\n".join(msg_blocks)
-            final_msg += "\n\n#FDA #DrugApproval"
+            final_msg += "\n\n---------------\n\n".join(msg_blocks) + "\n\n#FDA #DrugApproval"
             send_tg_message(final_msg)
-            print(f"✅ 发送了 {len(records_to_send)} 条上市企业获批信息。")
+            
+            # 记录成功状态
+            with open(LAST_SUCCESS_FILE, "w") as f:
+                f.write(today_str)
             
             with open(ID_FILE, "w") as f:
-                # 写入最新的 ID，保留最近 200 条以防文件无限膨胀
                 f.write("\n".join(current_all_ids[-200:]))
         else:
-            print("💡 本次扫描没有发现新的上市企业获批。")
+            print("💡 本次扫描没有发现新的获批。")
 
     except Exception as e:
         print(f"🛑 运行发生异常: {e}")
