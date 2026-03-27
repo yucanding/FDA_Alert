@@ -1,5 +1,3 @@
-!pip install yfinance beautifulsoup4 requests feedparser deep-translator pytz -q
-
 import requests
 import yfinance as yf
 from bs4 import BeautifulSoup
