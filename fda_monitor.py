@@ -214,7 +214,8 @@ def main():
                 block = (f"{idx}. 📅日期: {item['date']}\n"
                          f"    🏢公司: ${item['ticker']} ({item['company']})\n"
                          f"    💊药品: {item['drug']}\n"
-                         f"    💰市值: ${item['cap']:.2f}B | 💵股价: ${item['price']:.2f}\n"
+                         f"    💰市值: ${item['cap']:.2f}B\n"
+                         f"    💵股价: ${item['price']:.2f}\n"
                          f"    📢状态: {item['status']}\n" # <--- 新增的状态行
                          f'    🔗<a href="{item["link"]}">点击查看FDA公告</a>')
                 msg_blocks.append(block)
