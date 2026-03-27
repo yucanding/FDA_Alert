@@ -1,7 +1,9 @@
 name: FDA新药监控
 
 on:
-  workflow_dispatch: # 必须保留，供外部触发
+  workflow_dispatch: # 供手动或外部触发
+  schedule:
+    - cron: '0 13-22 * * 1-5' # 可选：周一至周五，美股交易时段每小时检查一次（UTC 13:00-22:00）
 
 permissions:
   contents: write
@@ -11,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4 # 升级到 v4
+        uses: actions/checkout@v4
 
       - name: 安装环境
         uses: actions/setup-python@v5
@@ -19,7 +21,9 @@ jobs:
           python-version: '3.10'
 
       - name: 安装依赖库
-        run: pip install requests beautifulsoup4 yfinance
+        # ⚠️ 这里新增了脚本所需的全部依赖库
+        run: |
+          pip install requests beautifulsoup4 yfinance feedparser deep-translator pytz
 
       - name: 执行监控脚本
         env:
@@ -31,7 +35,19 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          # 确保这两个文件都能被追踪
+          
+          # 确保文件存在，防止 git add 报错
           touch last_fda_ids.txt last_success_date_drug.txt
+          
+          # 先 pull 最新的变更，防止推送冲突
+          git pull origin main --rebase || echo "No changes to pull"
+          
           git add last_fda_ids.txt last_success_date_drug.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "更新FDA记录及状态" && git push)
+          
+          # 检查是否有文件更新，有则提交并推送
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "更新FDA记录及状态 [$(date +'%Y-%m-%d %H:%M')]"
+            git push
+          else
+            echo "No changes to commit"
+          fi
