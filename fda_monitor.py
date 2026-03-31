@@ -56,18 +56,28 @@ def get_detailed_action_date(appl_no):
 
 def get_verified_stock_data(company_name):
     try:
-        search = yf.Search(company_name, max_results=2)
+        search = yf.Search(company_name, max_results=3)
         if not search.quotes: return None
+        
         for quote in search.quotes:
             ticker = quote['symbol']
-            if "." not in ticker:
-                stock = yf.Ticker(ticker)
-                return {
-                    "ticker": ticker, 
-                    "name": quote.get('shortname', company_name),
-                    "price": stock.fast_info.last_price,
-                    "market_cap": stock.fast_info.market_cap / 1e9
-                }
+            if "." in ticker: continue
+            
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            
+            # --- 新增过滤逻辑 ---
+            # 1. 行业校验：必须是 Healthcare (医疗保健)
+            sector = info.get('sector', '')
+            if sector != 'Healthcare':
+                continue # 如果不是医疗行业，直接跳过
+                
+            return {
+                "ticker": ticker, 
+                "name": quote.get('shortname', company_name),
+                "price": stock.fast_info.last_price,
+                "market_cap": stock.fast_info.market_cap / 1e9
+            }
         return None
     except: return None
 
