@@ -56,30 +56,43 @@ def get_detailed_action_date(appl_no):
 
 def get_verified_stock_data(company_name):
     try:
-        search = yf.Search(company_name, max_results=3)
+        # 1. 对公司名进行预处理，去除 SAS, AG, LTD 等干扰
+        core_name = re.sub(r'(?i)\b(inc|corp|ltd|llc|co|company|plc|gmbh|sas|ag|se|s\.a\.s)\b|\.', '', company_name).strip()
+        search = yf.Search(core_name, max_results=5) # 增加搜索范围
+        
         if not search.quotes: return None
         
         for quote in search.quotes:
             ticker = quote['symbol']
-            if "." in ticker: continue
             
+            # 获取 Ticker 对象
             stock = yf.Ticker(ticker)
             info = stock.info
             
-            # --- 新增过滤逻辑 ---
-            # 1. 行业校验：必须是 Healthcare (医疗保健)
+            # --- 核心过滤三要素 ---
+            # A. 货币校验：必须是美元（精准锁定美股市场）
+            currency = info.get('currency', info.get('financialCurrency', ''))
+            # B. 行业校验：医疗保健
             sector = info.get('sector', '')
-            if sector != 'Healthcare':
-                continue # 如果不是医疗行业，直接跳过
-                
-            return {
-                "ticker": ticker, 
-                "name": quote.get('shortname', company_name),
-                "price": stock.fast_info.last_price,
-                "market_cap": stock.fast_info.market_cap / 1e9
-            }
+            # C. 交易所校验（可选）：排除常见的非美股后缀
+            if "." in ticker and not any(ext in ticker for ext in ["PK", "OB"]): 
+                # PK/OB 是美股OTC，如果连点都不要，就保持 if "." in ticker: continue
+                continue
+
+            if sector == 'Healthcare' and currency == 'USD':
+                # 额外增加一个名字包含检查，防止搜索偏移
+                short_name = quote.get('shortname', '').upper()
+                if core_name.upper().split()[0] in short_name: 
+                    return {
+                        "ticker": ticker, 
+                        "name": quote.get('shortname', company_name),
+                        "price": stock.fast_info.last_price,
+                        "market_cap": stock.fast_info.market_cap / 1e9
+                    }
         return None
-    except: return None
+    except Exception as e: 
+        print(f"股票检索异常: {e}")
+        return None
 
 def investigate_first_announcement(symbol, company_name, start_date_str):
     """
